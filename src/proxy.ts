@@ -1,6 +1,18 @@
 import models from './models';
 import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest, Model } from 'openai';
 
+// Secrects in Environment variables
+// https://developers.cloudflare.com/workers/platform/environment-variables/
+export interface Env {
+	API_KEY: string;
+	OPENAI_API_KEY: string;
+	ANTHROPIC_VERSION: string;
+	AZURE_OPENAI_API_KEY: string;
+	AZURE_OPENAI_RESOURCE_NAME: string;
+	ANTHROPIC_API_KEY: string;
+	PALM_API_KEY: string;
+}
+
 const modelMap: { [key: string]: Model } = models.data.reduce((map, model) => {
 	map[model.id] = model;
 	return map;
@@ -103,7 +115,6 @@ async function handleOpenAIRequest(
 	const url = new URL(request.url);
 	url.protocol = 'https';
 	url.hostname = 'api.openai.com';
-	url.hostname = 'oait.cheatshit.com';
 	url.port = '';
 
 	requestBody.model = modelId;
@@ -294,6 +305,125 @@ async function handleClaudeRequest(
 	});
 }
 
+function toPalmRequestBody(requestBody: CreateChatCompletionRequest) {
+	const transformedBody = {
+		temperature: requestBody?.temperature,
+		candidateCount: requestBody?.n,
+		topP: requestBody?.top_p,
+		prompt: {
+			context: requestBody?.messages?.find((msg) => msg.role === 'system')?.content,
+			messages: requestBody?.messages
+				?.filter((msg) => msg.role !== 'system')
+				.map((msg) => ({
+					// author: msg.role === 'user' ? '0' : '1',
+					content: msg.content,
+				})),
+		},
+	};
+
+	return transformedBody;
+}
+
+// Function to transform the palm json response to openai json response
+function palmResponseToOpenAI(palmData, modelId: string) {
+	if (!palmData.candidates || palmData.candidates.length === 0) {
+		palmData.candidates = [
+			{
+				author: '1',
+				content: 'Ooops, the model returned nothing',
+			},
+		];
+	}
+
+	return {
+		id: 'chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK',
+		object: 'chat.completion',
+		created: Math.floor(Date.now() / 1000),
+		model: modelId,
+		usage: {
+			prompt_tokens: palmData.messages.length,
+			completion_tokens: palmData.candidates.length,
+			total_tokens: palmData.messages.length + palmData.candidates.length,
+		},
+		choices: palmData.candidates.map((candidate, index) => ({
+			message: {
+				role: 'assistant',
+				content: candidate.content,
+			},
+			finish_reason: 'stop',
+			index: index,
+		})),
+	};
+}
+
+async function* streamPalmResponse(response, writable) {
+	let encoder = new TextEncoder();
+	let writer = writable.getWriter();
+	let content = response.choices[0].message.content;
+
+	// Split the content into chunks, and send each chunk as a separate event
+	let chunks = content.match(/\s+|\S+/g) || [];
+	for (const [i, chunk] of chunks.entries()) {
+		let chunkResponse = {
+			...response,
+			object: 'chat.completion.chunk',
+			choices: [
+				{
+					index: response.choices[0].index,
+					delta: { ...response.choices[0].message, content: chunk },
+					finish_reason: i === chunks.length - 1 ? 'stop' : null,
+				},
+			],
+			usage: null,
+		};
+
+		writer.write(encoder.encode(`data: ${JSON.stringify(chunkResponse)}\n\n`));
+	}
+
+	// Write the done signal
+	writer.write(encoder.encode(`data: [DONE]\n`));
+
+	writer.close();
+}
+
+async function handlePalmRequest(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response> {
+	let pathname = 'generateMessage';
+	if (modelId === 'text-bison-001') pathname = 'generateText';
+	const url = `https://generativelanguage.googleapis.com/v1beta2/models/${modelId}:${pathname}?key=${env.PALM_API_Key}`;
+	const palmRequestBody = toPalmRequestBody(requestBody);
+
+	const response = await fetch(url, {
+		method: request.method,
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(palmRequestBody),
+	});
+
+	const palmData = await response.json();
+	const transformedResponseBody = palmResponseToOpenAI(palmData, modelId);
+
+	// Fake stream here for OpenAI, Palm is so fast that it is confident enough to return a response immediately
+	if (requestBody.stream) {
+		let { readable, writable } = new TransformStream();
+		streamPalmResponse(transformedResponseBody, writable);
+
+		return new Response(readable, {
+			headers: {
+				'Content-Type': 'text/event-stream',
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Methods': '*',
+				'Access-Control-Allow-Headers': '*',
+			},
+		});
+	}
+
+	return new Response(JSON.stringify(transformedResponseBody), {
+		status: response.status,
+		headers: { 'Content-Type': 'application/json' },
+	});
+}
+
 async function handleMultipleModels(request: Request, env: Env) {
 	// Extract the model name from the POST body
 	const requestBody: CreateChatCompletionRequest = await request.json();
@@ -329,7 +459,10 @@ async function handleMultipleModels(request: Request, env: Env) {
 					}
 					break;
 				case 'palm':
-					console.log('Palm');
+					const responsePalm = await handlePalmRequest(request, env, requestBody, model.id);
+					for await (const value of handleClaudeStream(responsePalm.body)) {
+						await writer.write(value);
+					}
 					break;
 				default:
 					continue;
@@ -359,7 +492,7 @@ async function handleMultipleModels(request: Request, env: Env) {
 					response = await handleClaudeRequest(request, env, requestBody, model.id);
 					break;
 				case 'palm':
-					console.log('Palm');
+					response = await handlePalmRequest(request, env, requestBody, model.id);
 					break;
 				default:
 					continue;
