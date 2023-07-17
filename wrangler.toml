@@ -6,8 +6,8 @@ compatibility_date = "2023-07-10"
 # Note: Use secrets to store sensitive data.
 # Docs: https://developers.cloudflare.com/workers/platform/environment-variables
 [vars]
-ANTHROPIC_VERSION='2023-06-01'
-AZURE_OPENAI_RESOURCE_NAME='oait'
+ANTHROPIC_VERSION = '2023-06-01'
+AZURE_OPENAI_RESOURCE_NAME = 'oait'
 
 # Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
 # Docs: https://developers.cloudflare.com/workers/runtime-apis/kv
