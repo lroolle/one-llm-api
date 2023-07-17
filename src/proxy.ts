@@ -219,7 +219,7 @@ function claudeToOpenAIResponse(claudeResponse, modelId, stream = false) {
 	return result;
 }
 
-async function* handleClaudeStream(stream: ReadableStream) {
+async function* handleClaudeStream(stream: ReadableStream, modelId: string) {
 	const reader = stream.getReader();
 
 	const encoder = new TextEncoder();
@@ -250,6 +250,7 @@ async function* handleClaudeStream(stream: ReadableStream) {
 							completion: '',
 							stop_reason: stop_reason,
 						},
+						modelId,
 						true
 					);
 				} else {
@@ -258,6 +259,7 @@ async function* handleClaudeStream(stream: ReadableStream) {
 							...decodedLine,
 							completion: completion,
 						},
+						modelId,
 						true
 					);
 				}
@@ -389,9 +391,10 @@ async function* streamPalmResponse(response, writable) {
 async function handlePalmRequest(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response> {
 	let pathname = 'generateMessage';
 	if (modelId === 'text-bison-001') pathname = 'generateText';
-	const url = `https://generativelanguage.googleapis.com/v1beta2/models/${modelId}:${pathname}?key=${env.PALM_API_Key}`;
+	const url = `https://generativelanguage.googleapis.com/v1beta2/models/${modelId}:${pathname}?key=${env.PALM_API_KEY}`;
 	const palmRequestBody = toPalmRequestBody(requestBody);
 
+	console.log(url);
 	const response = await fetch(url, {
 		method: request.method,
 		headers: {
@@ -400,6 +403,7 @@ async function handlePalmRequest(request: Request, env: Env, requestBody: Create
 		body: JSON.stringify(palmRequestBody),
 	});
 
+	console.log(response);
 	const palmData = await response.json();
 	const transformedResponseBody = palmResponseToOpenAI(palmData, modelId);
 
@@ -454,7 +458,7 @@ async function handleMultipleModels(request: Request, env: Env) {
 					break;
 				case 'claude':
 					const responseClaude = await handleClaudeRequest(request, env, requestBody, model.id);
-					for await (const value of handleClaudeStream(responseClaude.body)) {
+					for await (const value of handleClaudeStream(responseClaude.body, model.id)) {
 						await writer.write(value);
 					}
 					break;

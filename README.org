@@ -1,0 +1,203 @@
+* x-to-openai-api-adapter
+
+This is a Cloudflare worker that acts as an adapter to proxy requests to the [[https://platform.openai.com/docs/guides/gpt/chat-completions-api][OpenAI Chat Completions API]] to other AI services like Claude, Azure OpenAI, and Google Palm.
+
+** Overview
+
+The worker allows you to make requests to the OpenAI API format and seamlessly redirect them under the hood to other services. This provides a unified API interface and abstraction layer across multiple AI providers.
+
+*Key features*:
+
+- *Single endpoint to access multiple AI services*;
+- Unified request/response format using the OpenAI API;
+- Auto handles streaming responses;
+- Single API key for authentication;
+- Support for OpenAI, Claude, Azure OpenAI, and Google Palm;
+- *Multiple models supported*;
+
+
+
+** Usages
+
+To use the adapter, simply make requests to the worker endpoint with the OpenAI JSON request payload.
+
+Behind the scenes the worker will:
+
+- Route requests to the appropriate backend based on the `model` specified
+- Transform request payload to the destination API format
+- Proxy the request and response
+- Convert responses back to OpenAI format
+
+
+*** Request Example
+
+For example, to use =gpt-3.5-turbo=:
+
+#+begin_src json :exports both
+{
+	"model": "gpt-3.5-turbo",
+	"stream": true,
+	"messages": [
+		{
+			"role": "user",
+			"content": "Hello there!"
+		}
+	]
+}
+#+end_src
+
+To use =claude-2=:
+
+#+begin_src json :exports both
+{
+  "model": "claude-2",
+	"stream": true,
+  "messages": [...]
+}
+#+end_src
+
+
+You can specify *multiple models* (delimitered by ~,~) to query in parallel:
+
+#+begin_src json :exports both
+{
+  "model": "gpt-3.5-turbo,claude-2",
+	"stream": true,
+  "messages": [...]
+}
+#+end_src
+
+The response will contain the concatenated output from both models streamed in the OpenAI API format.
+
+Other OpenAI parameters like `temperature`, `stream`, `stop` etc. can also be specified normally.
+
+*** Python Example
+
+#+begin_src python :exports both :results output
+import openai
+
+openai.api_key = "<your specified API_KEY>"
+openai.api_base = "<your worker endpoint>/v1"
+
+# The local wrangler development endpoint
+# openai.api_key = 'sk-fakekey'
+# openai.api_base = "http://127.0.0.1:8787/v1"
+
+chat_completion = openai.ChatCompletion.create(
+    model="gpt-4,claude-2",
+    messages=[
+        {"role": "user", "content": "A brief introduction about yourself and say hello"}
+    ],
+    stream=True,
+)
+
+
+for chunk in chat_completion:
+    if chunk["choices"]:
+        print(chunk["model"], chunk["choices"][0]["delta"].get("content", ""))
+#+end_src
+
+** The /X/ (API Services supported)
+
+- [x] OpenAI
+- [x] Azure OpenAI
+- [x] Claude
+- [x] Google Palm
+
+** The /models/ suported
+
+Here are the models currently supported by the adapter service:
+
+*** OpenAI Models:
+
+- gpt-3.5-turbo
+- gpt-3.5-turbo-0613
+- gpt-3.5-turbo-16k
+- gpt-3.5-turbo-16k-0613
+- gpt-4
+- gpt-4-0613
+
+*** Azure OpenAI Models(Depends on your deployment name):
+
+- gpt-35-turbo
+- gpt-35-turbo-16k
+
+*** Claude Models:
+
+- claude-instant-1(claude-instant-1.1)
+- claude-2(claude-2.0)
+
+*** Google Palm Models:
+
+- text-bison-001
+- chat-bison-001
+
+To use a particular model, specify its ID in the `model` field of the request body.
+
+Let me know if you need any other models added! I tried to include the major publicly available models relevant for chat/text completion.
+
+** Deployment
+
+
+[[https://deploy.workers.cloudflare.com/?url=https://github.com/lroolle/x-to-openai-api-adapter][Deploy to Cloudflare Workers]]
+
+
+To deploy, you will need:
+
+- Cloudflare account
+- API keys for each service
+
+*** Install wrangler
+
+#+begin_src sh :exports both :wrap src sh :results raw replace
+npm i wrangler -g
+#+end_src
+
+*** Environment Variables
+Configure the worker environment variables with your secret keys.
+
+#+begin_src sh :exports both :wrap src sh :results raw replace
+wrangler secret put API_KEY
+wrangler secret put OPENAI_API_KEY
+wrangler secret put AZURE_OPENAI_API_KEY
+wrangler secret put ANTHROPIC_API_KEY
+wrangler secret put PALM_API_KEY
+#+end_src
+
+Or you can add the keys after deploy using the Cloudflare dashboard.
+
+#+begin_quote
+Worker -> Settings -> Variables -> Environment Variables
+#+end_quote
+
+
+*** Run publish/deploy
+
+#+begin_src sh :exports both :wrap src sh :results raw replace
+wrangler depoly
+#+end_src
+
+** Development
+
+Create a ~.dev.vars~ with your environment API_KEYs, then run:
+
+#+begin_src sh :exports both :wrap src sh :results raw replace
+wrangler dev
+#+end_src
+
+
+#+begin_src sh :exports both :wrap src sh :results raw replace
+curl -vvv http://127.0.0.1:8787/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer sk-fakekey" -d '{
+    "model": "gpt-3.5-turbo,claude-2", "stream": true,
+    "messages": [{"role": "user", "content": "say hello world, no other words or punctuation please."}]
+  }'
+
+#+end_src
+
+
+
+** Contributions
+
+Contributions and improvements are welcome! Please open GitHub issues or PRs.
+
+Let me know if you would like any changes or have additional sections to add!
