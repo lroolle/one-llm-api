@@ -215,6 +215,7 @@ wrangler depoly
 ** TODO List
 
 *** [ ] Fix handle claude stream
+- Bugs in handle claude stream that it can not iterate the whole stream, sometimes.
 *** [ ] Handle multiple models merge JSON?
 :LOGBOOK:
 - State "[ ]"        from              [2023-07-18 Tue 21:10]
