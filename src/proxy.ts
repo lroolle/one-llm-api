@@ -160,7 +160,7 @@ function messagesToClaudePrompt(messages: Array<ChatCompletionRequestMessage>): 
 				break;
 		}
 	}
-	prompt += '\n\nAssistant: ';
+	prompt += '\n\nAssistant:';
 	return prompt;
 }
 
@@ -180,17 +180,25 @@ function toClaudeRequestBody(requestBody: CreateChatCompletionRequest, modelId: 
 	return claudeRequestBody;
 }
 
+function generateRandomId() {
+	const buffer = new Uint8Array(18); // Create a buffer with 18 bytes
+	crypto.getRandomValues(buffer); // Fill the buffer with random bytes
+	let base64Id = btoa(String.fromCharCode.apply(null, buffer)); // Convert the buffer to a base64 string
+	base64Id = base64Id.replace(/\//g, '_').replace(/\+/g, '-').replace(/=/g, ''); // Convert the base64 string to base64url
+	return 'chatcmpl-' + base64Id;
+}
+
 const stopReasonMap = {
 	stop_sequence: 'stop',
 	max_tokens: 'length',
 };
 
-function claudeToOpenAIResponse(claudeResponse, modelId, stream = false) {
+function claudeToOpenAIResponse(claudeResponse, modelId, messageId, stream = false) {
 	const completion = claudeResponse['completion'];
 	const timestamp = Math.floor(Date.now() / 1000);
 	const completionTokens = completion.split(' ').length;
 	const result = {
-		id: `chatcmpl-${timestamp}`,
+		id: messageId,
 		created: timestamp,
 		model: modelId,
 		usage: {
@@ -225,6 +233,8 @@ async function* handleClaudeStream(stream: ReadableStream, modelId: string) {
 	const encoder = new TextEncoder();
 	const decoder = new TextDecoder();
 
+	const messageId = generateRandomId();
+
 	let buffer = '';
 	while (true) {
 		const { done, value } = await reader.read();
@@ -251,6 +261,7 @@ async function* handleClaudeStream(stream: ReadableStream, modelId: string) {
 							stop_reason: stop_reason,
 						},
 						modelId,
+						messageId,
 						true
 					);
 				} else {
@@ -260,6 +271,7 @@ async function* handleClaudeStream(stream: ReadableStream, modelId: string) {
 							completion: completion,
 						},
 						modelId,
+						messageId,
 						true
 					);
 				}
@@ -300,7 +312,8 @@ async function handleClaudeRequest(
 	// If the response is not streamed, read it as JSON and return a new Response object
 	const responseBody = await response.json();
 	// TODO: handle error response
-	const openAIResponseBody = claudeToOpenAIResponse(responseBody, modelId, false);
+	const messageId = generateRandomId();
+	const openAIResponseBody = claudeToOpenAIResponse(responseBody, modelId, messageId, false);
 	return new Response(JSON.stringify(openAIResponseBody), {
 		status: response.status,
 		headers: { 'Content-Type': 'application/json' },
@@ -464,7 +477,7 @@ async function handleMultipleModels(request: Request, env: Env) {
 					break;
 				case 'palm':
 					const responsePalm = await handlePalmRequest(request, env, requestBody, model.id);
-					for await (const value of handleClaudeStream(responsePalm.body)) {
+					for await (const value of handleStream(responsePalm.body)) {
 						await writer.write(value);
 					}
 					break;
