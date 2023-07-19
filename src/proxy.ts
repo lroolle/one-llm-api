@@ -521,6 +521,64 @@ async function handleMultipleModels(request: Request, env: Env) {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		return handleMultipleModels(request, env);
+		return handleRequest(request, env);
 	},
 };
+
+async function handleRequest(request: Request, env: Env): Promise<Response> {
+	// Extract the model name from the POST body
+	const requestBody: CreateChatCompletionRequest = await request.json();
+	const requestStream = requestBody.stream || false;
+	const modelNames = requestBody.model.split(',');
+
+	if (requestStream) {
+		return handleStreamResponse(request, env, requestBody, modelNames);
+	} else {
+		return handleJsonResponse(request, env, requestBody, modelNames);
+	}
+}
+
+async function handleStreamResponse(
+	request: Request,
+	env: Env,
+	requestBody: CreateChatCompletionRequest,
+	modelNames: string[]
+): Promise<Response> {
+	// Create a new TransformStream
+	let { readable, writable } = new TransformStream();
+	const writer = writable.getWriter();
+	const messageId = generateRandomId();
+
+	for (const modelName of modelNames) {
+		const model = modelMap[modelName];
+
+		switch (model.owned_by) {
+			case 'openai':
+				break;
+			case 'azure-openai':
+				break;
+			case 'claude':
+				break;
+			case 'palm':
+				break;
+			default:
+				continue;
+		}
+	}
+
+	await writer.close();
+
+	// Return a new Response with the TransformStream's readable side
+	return new Response(readable, {
+		headers: { 'Content-Type': 'text/event-stream' },
+	});
+}
+
+async function handleJsonResponse(
+	request: Request,
+	env: Env,
+	requestBody: CreateChatCompletionRequest,
+	modelNames: string[]
+): Promise<Response> {
+	// TODO
+}
