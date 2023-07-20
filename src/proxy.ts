@@ -1,5 +1,7 @@
 import models from './models';
-import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest, Model } from 'openai';
+import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest, Model, OpenAIApi } from 'openai';
+
+import { OpenAIService, AzureOpenAIService } from './services';
 
 // Secrects in Environment variables
 // https://developers.cloudflare.com/workers/platform/environment-variables/
@@ -8,6 +10,7 @@ export interface Env {
 	OPENAI_API_KEY: string;
 	ANTHROPIC_VERSION: string;
 	AZURE_OPENAI_API_KEY: string;
+	AZURE_OPENAI_API_VERSION: string;
 	AZURE_OPENAI_RESOURCE_NAME: string;
 	ANTHROPIC_API_KEY: string;
 	PALM_API_KEY: string;
@@ -66,80 +69,6 @@ async function* handleStreamStop(stream: ReadableStream): AsyncGenerator<[Uint8A
 	if (buffer.length > 0) {
 		yield [encoder.encode(buffer), null];
 	}
-}
-
-async function handleAzureRequest(
-	request: Request,
-	env: Env,
-	requestBody: CreateChatCompletionRequest,
-	modelId: string
-): Promise<Response> {
-	const url = new URL(request.url);
-	url.protocol = 'https';
-	url.hostname = `${env.AZURE_OPENAI_RESOURCE_NAME}.openai.azure.com`;
-	url.port = '';
-	url.pathname = `/openai/deployments/${modelId}/chat/completions`;
-	url.searchParams.set('api-version', env.AZURE_OPENAI_API_VERSION || '2023-06-01-preview');
-
-	requestBody.model = modelId;
-	const azureRequest = new Request(url.toString(), {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'api-key': env.AZURE_OPENAI_API_KEY,
-		},
-		body: JSON.stringify(requestBody),
-	});
-
-	let response = await fetch(azureRequest);
-
-	// If the response is streamed, return it directly
-	if (response.headers.get('Content-Type') === 'text/event-stream') {
-		return response;
-	}
-
-	// If the response is not streamed, read it as JSON and return a new Response object
-	const responseBody = await response.json();
-	return new Response(JSON.stringify(responseBody), {
-		status: response.status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
-
-async function handleOpenAIRequest(
-	request: Request,
-	env: Env,
-	requestBody: CreateChatCompletionRequest,
-	modelId: string
-): Promise<Response> {
-	const url = new URL(request.url);
-	url.protocol = 'https';
-	url.hostname = 'api.openai.com';
-	url.port = '';
-
-	requestBody.model = modelId;
-	const openaiRequest = new Request(url.toString(), {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-		},
-		body: JSON.stringify(requestBody),
-	});
-
-	const response = await fetch(openaiRequest);
-
-	// If the response is streamed, return it directly
-	if (requestBody.stream) {
-		return response;
-	}
-
-	// If the response is not streamed, read it as JSON and return a new Response object
-	const responseBody = await response.json();
-	return new Response(JSON.stringify(responseBody), {
-		status: response.status,
-		headers: { 'Content-Type': 'application/json' },
-	});
 }
 
 function messagesToClaudePrompt(messages: Array<ChatCompletionRequestMessage>): string {
@@ -521,22 +450,18 @@ async function handleMultipleModels(request: Request, env: Env) {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		return handleRequest(request, env);
+		// Extract the model name from the POST body
+		const requestBody: CreateChatCompletionRequest = await request.json();
+		const requestStream = requestBody.stream || false;
+		const modelNames = requestBody.model.split(',');
+
+		if (requestStream) {
+			return handleStreamResponse(request, env, requestBody, modelNames);
+		} else {
+			return handleJsonResponse(request, env, requestBody, modelNames);
+		}
 	},
 };
-
-async function handleRequest(request: Request, env: Env): Promise<Response> {
-	// Extract the model name from the POST body
-	const requestBody: CreateChatCompletionRequest = await request.json();
-	const requestStream = requestBody.stream || false;
-	const modelNames = requestBody.model.split(',');
-
-	if (requestStream) {
-		return handleStreamResponse(request, env, requestBody, modelNames);
-	} else {
-		return handleJsonResponse(request, env, requestBody, modelNames);
-	}
-}
 
 async function handleStreamResponse(
 	request: Request,
@@ -551,9 +476,10 @@ async function handleStreamResponse(
 
 	for (const modelName of modelNames) {
 		const model = modelMap[modelName];
-
 		switch (model.owned_by) {
 			case 'openai':
+				const svc = new OpenAIService();
+				const respOpenAI = svc.fetch(request, env, requestBody, model.id);
 				break;
 			case 'azure-openai':
 				break;
