@@ -2,11 +2,11 @@ import { CreateChatCompletionRequest } from 'openai';
 import { Env } from './proxy';
 
 // Define the Service interface
-export interface Service {
+export interface AIService {
 	fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response>;
 }
 
-export class OpenAIService implements Service {
+export class OpenAIService implements AIService {
 	async fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response> {
 		const url = new URL(request.url);
 		url.protocol = 'https';
@@ -27,7 +27,7 @@ export class OpenAIService implements Service {
 	}
 }
 
-export class AzureOpenAIService implements Service {
+export class AzureOpenAIService implements AIService {
 	async fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response> {
 		const url = new URL(request.url);
 		url.protocol = 'https';

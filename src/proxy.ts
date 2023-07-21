@@ -1,7 +1,7 @@
 import models from './models';
 import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest, Model, OpenAIApi } from 'openai';
 
-import { OpenAIService, AzureOpenAIService } from './services';
+import { AIService, OpenAIService, AzureOpenAIService } from './services';
 
 // Secrects in Environment variables
 // https://developers.cloudflare.com/workers/platform/environment-variables/
@@ -448,17 +448,36 @@ async function handleMultipleModels(request: Request, env: Env) {
 	}
 }
 
+function handleError(e: any): Response {
+	console.error(e);
+	return new Response(
+		JSON.stringify({
+			error: JSON.stringify(e),
+		}),
+		{
+			status: 500,
+			headers: {
+				'content-type': 'application/json;charset=UTF-8',
+			},
+		}
+	);
+}
+
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		// Extract the model name from the POST body
-		const requestBody: CreateChatCompletionRequest = await request.json();
-		const requestStream = requestBody.stream || false;
-		const modelNames = requestBody.model.split(',');
+		try {
+			// Extract the model name from the POST body
+			const requestBody: CreateChatCompletionRequest = await request.json();
+			const requestStream = requestBody.stream || false;
+			const modelNames = requestBody.model.split(',');
 
-		if (requestStream) {
-			return handleStreamResponse(request, env, requestBody, modelNames);
-		} else {
-			return handleJsonResponse(request, env, requestBody, modelNames);
+			if (requestStream) {
+				return handleStreamResponse(request, env, requestBody, modelNames);
+			} else {
+				return handleJsonResponse(request, env, requestBody, modelNames);
+			}
+		} catch (e) {
+			handleError(e);
 		}
 	},
 };
@@ -470,26 +489,33 @@ async function handleStreamResponse(
 	modelNames: string[]
 ): Promise<Response> {
 	// Create a new TransformStream
-	let { readable, writable } = new TransformStream();
+	const { readable, writable } = new TransformStream();
 	const writer = writable.getWriter();
 	const messageId = generateRandomId();
+	let errors: string[] = new Array();
 
 	for (const modelName of modelNames) {
 		const model = modelMap[modelName];
+		let service: AIService;
 		switch (model.owned_by) {
 			case 'openai':
-				const svc = new OpenAIService();
-				const respOpenAI = svc.fetch(request, env, requestBody, model.id);
+				service = new OpenAIService();
 				break;
 			case 'azure-openai':
+				service = new OpenAIService();
 				break;
 			case 'claude':
-				break;
+				service = new OpenAIService();
+				break
 			case 'palm':
+				service = new OpenAIService();
 				break;
 			default:
+				// append to errors
+				errors.push(`Model ${modelName} not found`);
 				continue;
 		}
+		service.streamTo(writer);
 	}
 
 	await writer.close();
