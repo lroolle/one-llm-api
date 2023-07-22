@@ -1,7 +1,7 @@
 import models from './models';
 import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest, Model, OpenAIApi } from 'openai';
 
-import { AIService, OpenAIService, AzureOpenAIService } from './services';
+import { ServiceProvicder, OpenAIService, AzureOpenAIService } from './services';
 
 // Secrects in Environment variables
 // https://developers.cloudflare.com/workers/platform/environment-variables/
@@ -496,7 +496,7 @@ async function handleStreamResponse(
 
 	for (const modelName of modelNames) {
 		const model = modelMap[modelName];
-		let service: AIService;
+		let service: ServiceProvicder;
 		switch (model.owned_by) {
 			case 'openai':
 				service = new OpenAIService();
@@ -506,7 +506,7 @@ async function handleStreamResponse(
 				break;
 			case 'claude':
 				service = new OpenAIService();
-				break
+				break;
 			case 'palm':
 				service = new OpenAIService();
 				break;
@@ -515,7 +515,7 @@ async function handleStreamResponse(
 				errors.push(`Model ${modelName} not found`);
 				continue;
 		}
-		service.streamTo(writer);
+		service.pipeStream(request, env, requestBody, model.id, messageId, writer);
 	}
 
 	await writer.close();
