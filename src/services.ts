@@ -2,11 +2,12 @@ import { CreateChatCompletionRequest } from 'openai';
 import { Env } from './proxy';
 
 // Define the Service interface
-export interface AIService {
+export interface ServiceProvicder {
 	fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response>;
+	pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream);
 }
 
-export class OpenAIService implements AIService {
+export class OpenAIService implements ServiceProvicder {
 	async fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response> {
 		const url = new URL(request.url);
 		url.protocol = 'https';
@@ -25,9 +26,11 @@ export class OpenAIService implements AIService {
 
 		return await fetch(openaiRequest);
 	}
+
+	async pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream) {}
 }
 
-export class AzureOpenAIService implements AIService {
+export class AzureOpenAIService implements ServiceProvicder {
 	async fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response> {
 		const url = new URL(request.url);
 		url.protocol = 'https';
@@ -47,5 +50,13 @@ export class AzureOpenAIService implements AIService {
 		});
 
 		return await fetch(azureRequest);
+	}
+
+	async pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream) {
+		this.fetch(request, env, requestBody, modelId).then((response) => {
+			const reader = response.body?.getReader();
+			if (reader) {
+			}
+		});
 	}
 }
