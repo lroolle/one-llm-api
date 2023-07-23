@@ -4,7 +4,7 @@ import { Env } from './proxy';
 // Define the Service interface
 export interface ServiceProvicder {
 	fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response>;
-	pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream);
+	pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream): any;
 }
 
 export class OpenAIService implements ServiceProvicder {
@@ -27,7 +27,14 @@ export class OpenAIService implements ServiceProvicder {
 		return await fetch(openaiRequest);
 	}
 
-	async pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream) {}
+	async pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream) {
+		this.fetch(request, env, requestBody, modelId).then((response) => {
+			const reader = response.body?.getReader();
+			if (reader) {
+				reader.pipeThrough(writer);
+			}
+		});
+	}
 }
 
 export class AzureOpenAIService implements ServiceProvicder {
