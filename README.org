@@ -1,4 +1,4 @@
-* x-to-openai-api-adapter
+* LLM-API-UNIFIER
 
 This is a Cloudflare worker that acts as an adapter to proxy requests to the
 [[https://platform.openai.com/docs/guides/gpt/chat-completions-api][OpenAI Chat Completions API]] to other AI services like Claude, Azure OpenAI, and
@@ -174,7 +174,7 @@ You'll have to update the [[file:./src/models.ts]] for your own deployment names
 ** Deployment
 
 
-[[https://deploy.workers.cloudflare.com/?url=https://github.com/lroolle/x-to-openai-api-adapter][Deploy to Cloudflare Workers]]
+[[https://deploy.workers.cloudflare.com/?url=https://github.com/lroolle/llm-api-unifier][Deploy to Cloudflare Workers]]
 
 
 To deploy, you will need:

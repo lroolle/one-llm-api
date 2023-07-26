@@ -1,4 +1,4 @@
-name = "x-to-openai-adapter"
+name = "llm-api-unifier"
 main = "src/worker.ts"
 compatibility_date = "2023-07-10"
 
