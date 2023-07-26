@@ -1,5 +1,5 @@
 {
-	"name": "x-to-openai-adapter",
+	"name": "llm-api-unifier",
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
