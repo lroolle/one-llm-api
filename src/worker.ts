@@ -13,9 +13,16 @@ import handleProxy from './proxy';
 import models from './models';
 
 // declare what's available in our env
-type Env = {
+export interface Env {
 	API_KEY: string;
-};
+	OPENAI_API_KEY: string;
+	ANTHROPIC_VERSION: string;
+	AZURE_OPENAI_API_KEY: string;
+	AZURE_OPENAI_API_VERSION: string;
+	AZURE_OPENAI_RESOURCE_NAME: string;
+	ANTHROPIC_API_KEY: string;
+	PALM_API_KEY: string;
+}
 
 // create a convenient duple
 type CF = [env: Env, context: ExecutionContext];
