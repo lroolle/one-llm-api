@@ -515,7 +515,7 @@ async function handleStreamResponse(
 				errors.push(`Model ${modelName} not found`);
 				continue;
 		}
-		service.pipeStream(request, env, requestBody, model.id, messageId, writer);
+		await service.pipeStream(request, env, requestBody, model.id, messageId, writable);
 	}
 
 	await writer.close();
