@@ -11,7 +11,8 @@ export class OpenAIService implements ServiceProvicder {
 	async fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response> {
 		const url = new URL(request.url);
 		url.protocol = 'https';
-		url.hostname = 'api.openai.com';
+		// url.hostname = 'api.openai.com';
+		url.hostname = 'oai.cheatshit.com';
 		url.port = '';
 
 		requestBody.model = modelId;
@@ -27,13 +28,17 @@ export class OpenAIService implements ServiceProvicder {
 		return await fetch(openaiRequest);
 	}
 
-	async pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream) {
-		this.fetch(request, env, requestBody, modelId).then((response) => {
-			const reader = response.body?.getReader();
-			if (reader) {
-				reader.pipeThrough(writer);
+	async pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writable: WritableStream) {
+		const response = await this.fetch(request, env, requestBody, modelId);
+		const reader = response.body.getReader();
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) {
+				break;
 			}
-		});
+			console.log(value)
+			writable.write(value);
+		}
 	}
 }
 

@@ -54,6 +54,7 @@ router
 		if (!authHeader || authHeader !== `Bearer ${env.API_KEY}`) {
 			return new Response('Unauthorized', { status: 401 });
 		}
+
 		return handleProxy.fetch(request, env, ctx);
 	})
 	.all('*', () => new Response('Not Allowed', { status: 403 }));
