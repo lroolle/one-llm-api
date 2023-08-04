@@ -4,7 +4,13 @@ import { Env } from './proxy';
 // Define the Service interface
 export interface ServiceProvicder {
 	fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string): Promise<Response>;
-	pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writer: WritableStream): any;
+	pipeStream(
+		request: Request,
+		env: Env,
+		requestBody: CreateChatCompletionRequest,
+		modelId: string,
+		writer: WritableStreamDefaultWriter
+	): any;
 }
 
 export class OpenAIService implements ServiceProvicder {
@@ -28,16 +34,22 @@ export class OpenAIService implements ServiceProvicder {
 		return await fetch(openaiRequest);
 	}
 
-	async pipeStream(request: Request, env: Env, requestBody: CreateChatCompletionRequest, modelId: string, writable: WritableStream) {
+	async pipeStream(
+		request: Request,
+		env: Env,
+		requestBody: CreateChatCompletionRequest,
+		modelId: string,
+		writer: WritableStreamDefaultWriter
+	) {
 		const response = await this.fetch(request, env, requestBody, modelId);
-		const reader = response.body.getReader();
-		while (true) {
+		const reader = response?.body?.getReader();
+		while (true && reader != null) {
 			const { value, done } = await reader.read();
 			if (done) {
 				break;
 			}
-			console.log(value)
-			writable.write(value);
+			// console.log(value);
+			writer.write(value);
 		}
 	}
 }
