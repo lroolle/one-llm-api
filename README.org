@@ -124,15 +124,15 @@ for chunk in chat_completion:
         print(chunk["model"], chunk["choices"][0]["delta"].get("content", ""))
 #+end_src
 
-** The API Services supported
+** The API Services supported [2/4]
 
 *** [X] OpenAI
 CLOSED: [2023-07-18 Tue 21:08]
 *** [X] Azure OpenAI
 CLOSED: [2023-07-18 Tue 21:09]
-*** [X] Claude
+*** [ ] Claude
 CLOSED: [2023-07-18 Tue 21:09]
-*** [X] Google Palm
+*** [ ] Google Palm
 CLOSED: [2023-07-18 Tue 21:09]
 
 ** The /models/ suported
@@ -155,12 +155,18 @@ different models.
 
 // TODO:
 
-*** Claude Models
+*** TODO Claude Models
+:LOGBOOK:
+- State "TODO"       from              [2023-09-04 Mon 23:24]
+:END:
 
 - claude-instant-1(claude-instant-1.2)
 - claude-2(claude-2.0)
 
-*** Google Palm Models
+*** TODO Google Palm Models
+:LOGBOOK:
+- State "TODO"       from              [2023-09-04 Mon 23:24]
+:END:
 
 - text-bison-001
 - chat-bison-001
