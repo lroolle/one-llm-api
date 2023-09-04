@@ -1,4 +1,4 @@
-name = "llm-api-unifier"
+name = "one-llm-api"
 main = "src/worker.ts"
 compatibility_date = "2023-07-10"
 
@@ -6,14 +6,19 @@ compatibility_date = "2023-07-10"
 # Note: Use secrets to store sensitive data.
 # Docs: https://developers.cloudflare.com/workers/platform/environment-variables
 [vars]
+OPENAI_API_BASE = 'https://api.openai.com'
+AZURE_OPENAI_API_VERSION = '2023-07-01-preview'
 ANTHROPIC_VERSION = '2023-06-01'
-AZURE_OPENAI_RESOURCE_NAME = 'oait'
+# You can find you resources' deployments it in: https://oai.azure.com/portal
+# for multiple azure resources: resouceName1:modelId1,modelId2;resourceName2:modelId1,modelId2
+# AZURE_OPENAI_DEPLOYMENTS
 
 # Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
 # Docs: https://developers.cloudflare.com/workers/runtime-apis/kv
-# [[kv_namespaces]]
-# binding = "MY_KV_NAMESPACE"
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+[[kv_namespaces]]
+binding = "onellmapi"
+id = "e4df7e28e52549fcba84edddcba03d02"
+preview_id = "e4171d956752422386be01ad773cc2ee"
 
 # Bind an R2 Bucket. Use R2 to store arbitrarily large blobs of data, such as files.
 # Docs: https://developers.cloudflare.com/r2/api/workers/workers-api-usage/

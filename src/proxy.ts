@@ -1,37 +1,6 @@
-import models from './models';
-import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest, Model, OpenAIApi } from 'openai';
-
-import { ServiceProvicder, OpenAIService, AzureOpenAIService } from './services';
-
-// Secrects in Environment variables
-// https://developers.cloudflare.com/workers/platform/environment-variables/
-export interface Env {
-	API_KEY: string;
-	OPENAI_API_KEY: string;
-	ANTHROPIC_VERSION: string;
-	AZURE_OPENAI_API_KEY: string;
-	AZURE_OPENAI_API_VERSION: string;
-	AZURE_OPENAI_RESOURCE_NAME: string;
-	ANTHROPIC_API_KEY: string;
-	PALM_API_KEY: string;
-}
-
-const modelMap: { [key: string]: Model } = models.data.reduce((map, model) => {
-	map[model.id] = model;
-	return map;
-}, {});
-
-// Function to handle each ReadableStream
-async function* handleStream(stream: ReadableStream) {
-	const reader = stream.getReader();
-	while (true) {
-		const { value, done } = await reader.read();
-		if (done) {
-			break;
-		}
-		yield value;
-	}
-}
+import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest } from 'openai';
+import { fetchAllModels, getAvailableProviders, Model, providerServiceMap, getModelFromKV } from './services';
+import { Env } from './worker';
 
 // To handle multiple streams, we my need to remove some stop signals?
 async function* handleStreamStop(stream: ReadableStream): AsyncGenerator<[Uint8Array, string | null]> {
@@ -191,7 +160,7 @@ async function* handleClaudeStream(stream: ReadableStream, modelId: string) {
 						},
 						modelId,
 						messageId,
-						true
+						true,
 					);
 				} else {
 					transformedLine = claudeToOpenAIResponse(
@@ -201,7 +170,7 @@ async function* handleClaudeStream(stream: ReadableStream, modelId: string) {
 						},
 						modelId,
 						messageId,
-						true
+						true,
 					);
 				}
 				yield encoder.encode(`data: ${JSON.stringify(transformedLine)}\n\n`);
@@ -218,7 +187,7 @@ async function handleClaudeRequest(
 	request: Request,
 	env: Env,
 	requestBody: CreateChatCompletionRequest,
-	modelId: string
+	modelId: string,
 ): Promise<Response> {
 	const url = 'https://api.anthropic.com/v1/complete';
 	const claudeRequestBody = toClaudeRequestBody(requestBody, modelId);
@@ -370,84 +339,6 @@ async function handlePalmRequest(request: Request, env: Env, requestBody: Create
 	});
 }
 
-async function handleMultipleModels(request: Request, env: Env) {
-	// Extract the model name from the POST body
-	const requestBody: CreateChatCompletionRequest = await request.json();
-	const modelNames = requestBody.model.split(',');
-	const requestStream = requestBody.stream || false;
-
-	if (requestStream) {
-		// Create a new TransformStream
-		let { readable, writable } = new TransformStream();
-		const writer = writable.getWriter();
-
-		for (const modelName of modelNames) {
-			const model = modelMap[modelName];
-			switch (model.owned_by) {
-				case 'openai':
-					const responseOpenai = await handleOpenAIRequest(request, env, requestBody, model.id);
-					for await (const value of handleStream(responseOpenai.body)) {
-						// console.log('openai: ', value);
-						await writer.write(value);
-					}
-					break;
-				case 'azure-openai':
-					const responseAzure = await handleAzureRequest(request, env, requestBody, model.id);
-					for await (const value of handleStream(responseAzure.body)) {
-						// console.log('azure: ', value);
-						await writer.write(value);
-					}
-					break;
-				case 'claude':
-					const responseClaude = await handleClaudeRequest(request, env, requestBody, model.id);
-					for await (const value of handleClaudeStream(responseClaude.body, model.id)) {
-						await writer.write(value);
-					}
-					break;
-				case 'palm':
-					const responsePalm = await handlePalmRequest(request, env, requestBody, model.id);
-					for await (const value of handleStream(responsePalm.body)) {
-						await writer.write(value);
-					}
-					break;
-				default:
-					continue;
-			}
-		}
-
-		const encoder = new TextEncoder();
-		await writer.write(encoder.encode('\n'));
-		await writer.close();
-
-		// Return a new Response with the TransformStream's readable side
-		return new Response(readable, {
-			headers: { 'Content-Type': 'text/event-stream' },
-		});
-	} else {
-		let response;
-		for (const modelName of modelNames) {
-			const model = modelMap[modelName];
-			switch (model.owned_by) {
-				case 'openai':
-					response = await handleOpenAIRequest(request, env, requestBody, model.id);
-					break;
-				case 'azure-openai':
-					response = await handleAzureRequest(request, env, requestBody, model.id);
-					break;
-				case 'claude':
-					response = await handleClaudeRequest(request, env, requestBody, model.id);
-					break;
-				case 'palm':
-					response = await handlePalmRequest(request, env, requestBody, model.id);
-					break;
-				default:
-					continue;
-			}
-		}
-		return response;
-	}
-}
-
 function handleError(e: any): Response {
 	console.error(e);
 	return new Response(
@@ -459,14 +350,13 @@ function handleError(e: any): Response {
 			headers: {
 				'content-type': 'application/json;charset=UTF-8',
 			},
-		}
+		},
 	);
 }
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		try {
-			// Extract the model name from the POST body
 			const requestBody: CreateChatCompletionRequest = await request.json();
 			const requestStream = requestBody.stream || false;
 			const modelNames = requestBody.model.split(',');
@@ -477,45 +367,58 @@ export default {
 				return handleJsonResponse(request, env, requestBody, modelNames);
 			}
 		} catch (e) {
-			handleError(e);
+			return handleError(e);
 		}
 	},
 };
+
+async function getModel(env: Env, modelName: string): Promise<Model | null> {
+	let model = await getModelFromKV(env, modelName);
+
+	if (!model) {
+		const providers = getAvailableProviders(env);
+		const allModels = await fetchAllModels(env, providers, true);
+		model = allModels.find((m) => m.id === modelName) || null;
+	}
+
+	return model;
+}
 
 async function handleStreamResponse(
 	request: Request,
 	env: Env,
 	requestBody: CreateChatCompletionRequest,
-	modelNames: string[]
+	modelNames: string[],
 ): Promise<Response> {
-	// Create a new TransformStream
 	const { readable, writable } = new TransformStream();
 	const writer = writable.getWriter();
-	const messageId = generateRandomId();
-	let errors: string[] = new Array();
+	let errors: string[] = [];
 
 	for (const modelName of modelNames) {
-		const model = modelMap[modelName];
-		let service: ServiceProvicder;
-		switch (model.owned_by) {
-			case 'openai':
-				service = new OpenAIService();
-				break;
-			case 'azure-openai':
-				service = new OpenAIService();
-				break;
-			case 'claude':
-				service = new OpenAIService();
-				break;
-			case 'palm':
-				service = new OpenAIService();
-				break;
-			default:
-				// append to errors
-				errors.push(`Model ${modelName} not found`);
-				continue;
+		const model = await getModel(env, modelName);
+		// console.log(model);
+
+		if (!model) {
+			errors.push(`Model ${modelName} not found.`);
+			continue;
 		}
-		await service.pipeStream(request, env, requestBody, model.id, writer);
+
+		try {
+			const ServiceClass = providerServiceMap[model.provider];
+			const serviceInstance = new ServiceClass();
+			await serviceInstance.pipeStream(request, env, requestBody, model, writer);
+		} catch (error) {
+			errors.push(`Service for model ${modelName} error pipeStream.`);
+			continue;
+		}
+	}
+
+	if (errors.length) {
+		// console.error(errors.join(', '));
+
+		// Write the errors to the stream
+		const encoder = new TextEncoder();
+		await writer.write(encoder.encode(`Errors: ${errors.join(', ')}`));
 	}
 
 	await writer.close();
@@ -530,7 +433,66 @@ async function handleJsonResponse(
 	request: Request,
 	env: Env,
 	requestBody: CreateChatCompletionRequest,
-	modelNames: string[]
+	modelNames: string[],
 ): Promise<Response> {
-	// TODO
+	let aggregatedId: string | null = null;
+	let aggregatedChoices: any[] = [];
+	let aggregatedPromptAnnotations: any[] = [];
+	let totalTokens = 0;
+	let errors: string[] = [];
+
+	for (const modelName of modelNames) {
+		const model = await getModel(env, modelName);
+
+		if (!model) {
+			errors.push(`Model ${modelName} not found.`);
+			continue;
+		}
+
+		try {
+			const ServiceClass = providerServiceMap[model.provider];
+			const serviceInstance = new ServiceClass();
+			const response = await serviceInstance.fetch(request, env, requestBody, model);
+
+			if (!response.ok) {
+				errors.push(`Error fetching model ${modelName}: ${response.statusText}`);
+				continue;
+			}
+
+			const responseData: any = await response.json();
+			if (!aggregatedId) {
+				aggregatedId = responseData.id;
+			}
+
+			aggregatedChoices = aggregatedChoices.concat(responseData.choices);
+
+			if (responseData.prompt_annotations) {
+				aggregatedPromptAnnotations = aggregatedPromptAnnotations.concat(responseData.prompt_annotations);
+			}
+
+			if (responseData.usage && responseData.usage.total_tokens) {
+				totalTokens += responseData.usage.total_tokens;
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+			errors.push(`Error processing model ${modelName}: ${errorMessage}`);
+		}
+	}
+
+	const mergedResponse = {
+		id: aggregatedId || generateRandomId(),
+		object: 'chat.completion',
+		created: Date.now(),
+		model: modelNames.join(','),
+		choices: aggregatedChoices,
+		prompt_annotations: aggregatedPromptAnnotations,
+		usage: {
+			total_tokens: totalTokens,
+		},
+		errors: errors,
+	};
+
+	return new Response(JSON.stringify(mergedResponse), {
+		headers: { 'Content-Type': 'application/json' },
+	});
 }

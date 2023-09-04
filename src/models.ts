@@ -1,107 +1,58 @@
-import { Model, ListModelsResponse } from 'openai';
+import { getAvailableProviders, fetchAllModels } from './services';
+import { Provider } from './services';
+import { Env } from './worker';
 
-// TODO use a configurable toml file to store this
+export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		try {
+			// Extract the providers from the search parameters
+			const url = new URL(request.url);
+			const providersParam = url.searchParams.get('providers');
+			let providers: Provider[] = [];
 
-// TODO rm this
-const filterChatCompatibleModels = (response: ListModelsResponse): Array<Model> => {
-	const chatCompatibleModels = [
-		'gpt-4',
-		'gpt-4-0613',
-		'gpt-4-32k',
-		'gpt-4-32k-0613',
-		'gpt-3.5-turbo',
-		'gpt-3.5-turbo-0613',
-		'gpt-3.5-turbo-16k',
-		'gpt-3.5-turbo-16k-0613',
-		// azure
-		'gpt-35-turbo',
-		'gpt-35-turbo-16k',
-		// claude
-		'claude-instant-1',
-		'claude-2',
-		// palm
-		'text-bison-001',
-		'chat-bison-001',
-	];
+			if (providersParam) {
+				const potentialProviders = providersParam.split(',');
+				for (const potentialProvider of potentialProviders) {
+					if (Object.values(Provider).includes(potentialProvider as Provider)) {
+						providers.push(potentialProvider as Provider);
+					} else {
+						console.warn(`Unknown provider: ${potentialProvider}`);
+					}
+				}
+			}
 
-	return response.data.filter((model) => chatCompatibleModels.includes(model.id));
-};
+			console.log(providers);
+			// If no providers are specified in the request, use the default providers available in the env
+			if (!providers.length) {
+				providers = getAvailableProviders(env);
+			}
 
-// The full list of models is retrieved from the following API, models are vary depends on your account.
-// https://api.openai.com/v1/models
-const openaiResponse: ListModelsResponse = {
-	object: 'list',
-	data: [
-		{
-			id: 'gpt-3.5-turbo-16k-0613',
-			object: 'model',
-			created: 1685474247,
-			owned_by: 'openai',
-		},
-		{
-			id: 'gpt-3.5-turbo-0301',
-			object: 'model',
-			created: 1677649963,
-			owned_by: 'openai',
-		},
-		{
-			id: 'gpt-3.5-turbo-16k',
-			object: 'model',
-			created: 1683758102,
-			owned_by: 'openai-internal',
-		},
-		{
-			id: 'gpt-4-0314',
-			object: 'model',
-			created: 1687882410,
-			owned_by: 'openai',
-		},
-		{
-			id: 'gpt-3.5-turbo',
-			object: 'model',
-			created: 1677610602,
-			owned_by: 'openai',
-		},
-		{
-			id: 'gpt-3.5-turbo-0613',
-			object: 'model',
-			created: 1686587434,
-			owned_by: 'openai',
-		},
-		{
-			id: 'gpt-4',
-			object: 'model',
-			created: 1687882411,
-			owned_by: 'openai',
-		},
-		{
-			id: 'gpt-4-0613',
-			object: 'model',
-			created: 1686588896,
-			owned_by: 'openai',
-		},
-	],
-};
+			const forceRefreshCache = url.searchParams.get('forceRefreshCache') === 'true';
+			const combinedModels = await fetchAllModels(env, providers, forceRefreshCache);
 
-// The Azure openai service model id are vary by the deployment name you choose.
-// Deployment list can be retrieved with the REST API, read more in:
-// https://learn.microsoft.com/en-us/rest/api/cognitiveservices/accountmanagement/deployments/list?tabs=HTTP#code-try-0
-const fakeAzureResponse: ListModelsResponse = {
-	object: 'list',
-	data: [
-		{
-			id: 'gpt-35-turbo',
-			object: 'model',
-			created: 1683758102,
-			owned_by: 'azure-openai',
-		},
-		{
-			id: 'gpt-35-turbo-16k',
-			object: 'model',
-			created: 1683758102,
-			owned_by: 'azure-openai',
-		},
-	],
+			// Return the combined models as a JSON response
+			return new Response(
+				JSON.stringify({
+					object: 'list',
+					data: combinedModels,
+				}),
+				{
+					headers: { 'Content-Type': 'application/json' },
+				},
+			);
+		} catch (error) {
+			console.error('Error fetching models:', error);
+			return new Response(
+				JSON.stringify({
+					error: 'Failed to fetch models.',
+				}),
+				{
+					status: 500,
+					headers: { 'Content-Type': 'application/json' },
+				},
+			);
+		}
+	},
 };
 
 // Claude models
@@ -161,15 +112,3 @@ const fakePalmResponse: ListModelsResponse = {
 		// },
 	],
 };
-
-const models: ListModelsResponse = {
-	object: 'list',
-	data: [
-		...filterChatCompatibleModels(openaiResponse),
-		...filterChatCompatibleModels(fakeAzureResponse),
-		...filterChatCompatibleModels(fakeClaudeResponse),
-		...filterChatCompatibleModels(fakePalmResponse),
-	],
-};
-
-export default models;

@@ -1,27 +1,21 @@
-* LLM-API-UNIFIER
+* ONE-LLM-API
 
 This is a Cloudflare worker that acts as an adapter to proxy requests to the
 [[https://platform.openai.com/docs/guides/gpt/chat-completions-api][OpenAI Chat Completions API]] to other AI services like Claude, Azure OpenAI, and
 Google Palm.
 
 This project draws inspiration from, and is based on, the work of
-[[https://github.com/haibbo/cf-openai-azure-proxy][haibbo/cf-openai-azure-proxy]]. If you only require a single service proxy (such
-as Claude/Azure), please consider using the original project. This project,
-however, is more complex and is specifically designed to accommodate multiple
-services.
+[[https://github.com/haibbo/cf-openai-azure-proxy][haibbo/cf-openai-azure-proxy]]. If you only require a single service proxy
+(such as Claude/Azure), please consider using the original project.
+This project, however, is more complex and is specifically designed to
+accommodate multiple services.
 
-#+begin_ai markdown :model gpt-4 :temperature 0.5
-[SYS]: You're a native en-us speaker who is also an expert in Emacs Org mode.
+** Quick Start
 
-[ME]: Grammar fix and polish the following text in Org mode:
-This project is inspired and based on the work of [[https://github.com/haibbo/cf-openai-azure-proxy][haibbo/cf-openai-azure-proxy]],
-If you just need a single service proxy(Claude/Azure), just use the original project. This project is more complex and designed for multiple services.
+#+begin_src sh :exports both :wrap src sh :results raw replace
+curl TODO
+#+end_src
 
-
-[AI]: This project draws inspiration from, and is based on, the work of [[https://github.com/haibbo/cf-openai-azure-proxy][haibbo/cf-openai-azure-proxy]]. If you only require a single service proxy (such as Claude/Azure), please consider using the original project. This project, however, is more complex and is specifically designed to accommodate multiple services.
-
-[ME]:
-#+end_ai
 
 ** Overview
 
@@ -34,10 +28,15 @@ interface and abstraction layer across multiple AI providers.
 - *Single endpoint to access multiple AI services*;
 - Chat to *Multiple models* in a single request;
 - Unified request/response format using the OpenAI API;
-- Auto handles streaming responses;
+- Handles streaming responses;
 - Single API key for authentication;
 - Support for OpenAI, Claude, Azure OpenAI, and Google Palm;
+- Support multiple resource config for Azure OpenAI;
 
+**** Features may be added in the future
+1. Multiple "ONE_API_KEY" support;
+2. Logging request by keys, pricing and token count;
+3. Throttling;
 
 ** Usages
 
@@ -125,7 +124,7 @@ for chunk in chat_completion:
         print(chunk["model"], chunk["choices"][0]["delta"].get("content", ""))
 #+end_src
 
-** The /X/ (API Services supported)
+** The API Services supported
 
 *** [X] OpenAI
 CLOSED: [2023-07-18 Tue 21:08]
@@ -142,39 +141,34 @@ Here are the models currently supported by the adapter service:
 
 To use a particular model, specify its ID in the `model` field of the request body.
 
-*** OpenAI Models:
+*** OpenAI Models
 
-- gpt-3.5-turbo
-- gpt-3.5-turbo-0613
-- gpt-3.5-turbo-16k
-- gpt-3.5-turbo-16k-0613
-- gpt-4
-- gpt-4-0613
+All the chat models available by your OPENAI_API_KEY
 
-*** Azure OpenAI Models(Depending on your deployment name):
+*** Azure OpenAI Models
 
-/For example, the following models are the deployment names from my azure openai service./
+Based on your deployment name, you will have to set the environment variable
+~AZURE_OPENAI_API_KEY~ to the corresponding API key.
 
-You'll have to update the [[file:./src/models.ts]] for your own deployment names.
+You can also setup multiple deployments with different API keys to access
+different models.
 
-- gpt-35-turbo
-- gpt-35-turbo-16k
+// TODO:
 
-*** Claude Models:
+*** Claude Models
 
-- claude-instant-1(claude-instant-1.1)
+- claude-instant-1(claude-instant-1.2)
 - claude-2(claude-2.0)
 
-*** Google Palm Models:
+*** Google Palm Models
 
 - text-bison-001
 - chat-bison-001
 
-
 ** Deployment
 
 
-[[https://deploy.workers.cloudflare.com/?url=https://github.com/lroolle/llm-api-unifier][Deploy to Cloudflare Workers]]
+[[https://deploy.workers.cloudflare.com/?url=https://github.com/lroolle/one-llm-api][Deploy to Cloudflare Workers]]
 
 
 To deploy, you will need:
@@ -188,13 +182,24 @@ To deploy, you will need:
 npm i wrangler -g
 #+end_src
 
+*** KV create
+#+begin_src sh :exports both :wrap src sh :results raw replace
+wrangler kv:namespace create onellmapi
+
+# if you need to test in the local wrangler dev
+wrangler kv:namespace create onellmapi --preview
+#+end_src
+
 *** Environment Variables
+
 Configure the worker environment variables with your secret keys.
 
+Skip the service key if you do not have one or you do not want to deploy it.
+
 #+begin_src sh :exports both :wrap src sh :results raw replace
-wrangler secret put API_KEY
+wrangler secret put ONE_API_KEY
 wrangler secret put OPENAI_API_KEY
-wrangler secret put AZURE_OPENAI_API_KEY
+wrangler secret put AZURE_OPENAI_API_KEYS
 wrangler secret put ANTHROPIC_API_KEY
 wrangler secret put PALM_API_KEY
 #+end_src
@@ -205,45 +210,11 @@ Or you can add the keys after deploy using the Cloudflare dashboard.
 Worker -> Settings -> Variables -> Environment Variables
 #+end_quote
 
-
 *** Run publish/deploy
 
 #+begin_src sh :exports both :wrap src sh :results raw replace
 wrangler depoly
 #+end_src
-
-** TODO List
-
-*** [ ] Fix handle claude stream
-- Bugs in handle claude stream that it can not iterate the whole stream, sometimes.
-*** [ ] Handle multiple models merge JSON?
-:LOGBOOK:
-- State "[ ]"        from              [2023-07-18 Tue 21:10]
-:END:
-*** [ ] Error handling
-:LOGBOOK:
-- State "[ ]"        from              [2023-07-18 Tue 21:17]
-:END:
-*** [ ] Refactor the proxy.ts to different files
-:LOGBOOK:
-- State "[ ]"        from              [2023-07-18 Tue 21:25]
-:END:
-*** [ ] A generic way to configure the Azure OpenAI models
-:LOGBOOK:
-- State "[ ]"        from              [2023-07-18 Tue 21:22]
-:END:
-
-*** [ ] Mutiple API_KEYs support
-:LOGBOOK:
-- State "[ ]"        from              [2023-07-18 Tue 21:09]
-:END:
-- Config multiple API_KEYs
-- Maybe specify different key by the model?
-- Maybe retriable for the same model with different keys?
-*** [ ] A basic metric API/dashboard
-:LOGBOOK:
-- State "[ ]"        from              [2023-07-18 Tue 21:10]
-:END:
 
 
 ** Development
@@ -258,11 +229,9 @@ wrangler dev
 #+begin_src sh :exports both :wrap src sh :results raw replace
 curl -vvv http://127.0.0.1:8787/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer sk-fakekey" -d '{
     "model": "gpt-3.5-turbo,claude-2", "stream": true,
-    "messages": [{"role": "user", "content": "say hello world, no other words or punctuation please."}]
+    "messages": [{"role": "user", "content": "Say: Hello I am your helpful one Assistant."}]
   }'
-
 #+end_src
-
 
 
 ** Contributions
