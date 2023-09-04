@@ -10,18 +10,27 @@
 
 import { Router, IRequest } from 'itty-router';
 import handleProxy from './proxy';
-import models from './models';
+import handleModels from './models';
 
 // declare what's available in our env
 export interface Env {
-	API_KEY: string;
-	OPENAI_API_KEY: string;
-	ANTHROPIC_VERSION: string;
-	AZURE_OPENAI_API_KEY: string;
-	AZURE_OPENAI_API_VERSION: string;
-	AZURE_OPENAI_RESOURCE_NAME: string;
-	ANTHROPIC_API_KEY: string;
-	PALM_API_KEY: string;
+	ONE_API_KEY: string;
+	OPENAI_API_KEY?: string;
+	OPENAI_API_BASE?: string;
+	// Azure openai
+	AZURE_OPENAI_API_VERSION?: string;
+	// resouceName1:modelId1,modelId2;resourceName2:modelId1,modelId2
+	AZURE_OPENAI_DEPLOYMENTS?: string;
+	// key1;key2
+	AZURE_OPENAI_API_KEYS?: string;
+	AZURE_OPENAI_API_BASE?: string;
+	// Anthropic
+	ANTHROPIC_VERSION?: string;
+	ANTHROPIC_API_KEY?: string;
+	// Google palm
+	PALM_API_KEY?: string;
+	// namespaces
+	onellmapi: KVNamespace;
 }
 
 // create a convenient duple
@@ -29,7 +38,23 @@ type CF = [env: Env, context: ExecutionContext];
 
 const router = Router<IRequest, CF>();
 
+const withAuthorization = (request: Request, env: Env): Response | undefined => {
+	const authHeader = request.headers.get('Authorization');
+	if (!authHeader || authHeader !== `Bearer ${env.ONE_API_KEY}`) {
+		const responseBody = {
+			message: 'Invalid API key. You should find your valid ONE_API_KEY in the workers env, otherwise you will have to set it.',
+			code: 'invalid_api_key',
+		};
+		return new Response(JSON.stringify(responseBody), { status: 401, headers: { 'Content-Type': 'application/json' } });
+	}
+};
+
+const withLogging = async (request: Request, env: Env) => {
+	console.log('Logged request');
+};
+
 router
+	.all('*', withLogging)
 	.options(
 		'*',
 		() =>
@@ -40,21 +65,13 @@ router
 					'Access-Control-Allow-Headers': '*',
 					'Access-Control-Allow-Credentials': 'true',
 				},
-			})
+			}),
 	)
-	.post('/v1/models', (request, env) => {
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || authHeader !== `Bearer ${env.API_KEY}`) {
-			return new Response('Unauthorized', { status: 401 });
-		}
-		return new Response(JSON.stringify(models), { headers: { 'Content-Type': 'application/json' } });
+	.all('*', withAuthorization)
+	.get('/v1/models', (request, env, ctx) => {
+		return handleModels.fetch(request, env, ctx);
 	})
 	.post('/v1/chat/completions', (request, env, ctx) => {
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || authHeader !== `Bearer ${env.API_KEY}`) {
-			return new Response('Unauthorized', { status: 401 });
-		}
-
 		return handleProxy.fetch(request, env, ctx);
 	})
 	.all('*', () => new Response('Not Allowed', { status: 403 }));
