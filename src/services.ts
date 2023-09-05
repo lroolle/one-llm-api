@@ -84,7 +84,6 @@ export class OpenAIService implements ServiceProvider {
       if (done) {
         break;
       }
-      // TODO: count completion tokens
       writer.write(value);
     }
   }
@@ -167,6 +166,7 @@ export class AzureOpenAIService implements ServiceProvider {
     }
     return response;
   }
+
   async pipeStream(
     request: Request,
     env: Env,
@@ -209,7 +209,7 @@ export class AzureOpenAIService implements ServiceProvider {
   }
 
   private getAzureApiKey(env: Env, resourceIdx: number | undefined): string {
-    const apiKeys = env.AZURE_OPENAI_API_KEYS?.split(';') || [];
+    const apiKeys = env.AZURE_OPENAI_API_KEYS?.split(';').map((keyPair) => keyPair.split(':')[1]) || [];
     if (resourceIdx !== undefined && resourceIdx >= 0 && resourceIdx < apiKeys.length) {
       return apiKeys[resourceIdx];
     }
@@ -218,9 +218,10 @@ export class AzureOpenAIService implements ServiceProvider {
 
   private parseAzureDeploymentConfig(env: Env): { resource_name: string; model_ids: string[]; resource_idx: number }[] {
     const resourceDeployments = env.AZURE_OPENAI_DEPLOYMENTS?.split(';') || [];
+    const resourceKeys = env.AZURE_OPENAI_API_KEYS?.split(';').map((key) => key.split(':')[0]) || [];
 
-    return resourceDeployments.map((resourceDeployment, index) => {
-      const [resourceName, modelIds] = resourceDeployment.split(':');
+    return resourceDeployments.map((modelIds, index) => {
+      const resourceName = resourceKeys[index];
       return {
         resource_name: resourceName,
         model_ids: modelIds.split(','),
@@ -306,7 +307,7 @@ export class AzureOpenAIService implements ServiceProvider {
   }
 }
 
-export class ClaudeService implements ServiceProvider {
+export class AnthropicService implements ServiceProvider {
   async fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, model: Model): Promise<Response> {
     throw new Error('ClaudeService: fetch method not implemented.');
   }
@@ -349,7 +350,7 @@ export class PalmService implements ServiceProvider {
 export const providerServiceMap: Record<Provider, new () => ServiceProvider> = {
   [Provider.OpenAI]: OpenAIService,
   [Provider.AzureOpenAI]: AzureOpenAIService,
-  [Provider.Anthropic]: ClaudeService,
+  [Provider.Anthropic]: AnthropicService,
   [Provider.Palm]: PalmService,
 };
 

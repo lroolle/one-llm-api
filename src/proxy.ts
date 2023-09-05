@@ -439,7 +439,10 @@ async function handleJsonResponse(
   let aggregatedChoices: any[] = [];
   let aggregatedPromptAnnotations: any[] = [];
   let totalTokens = 0;
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
   let errors: string[] = [];
+  let usageDetails: any[] = [];
 
   for (const modelName of modelNames) {
     const model = await getModel(env, modelName);
@@ -464,14 +467,26 @@ async function handleJsonResponse(
         aggregatedId = responseData.id;
       }
 
-      aggregatedChoices = aggregatedChoices.concat(responseData.choices);
+      // Add model name to each choice
+      const choicesWithModel = responseData.choices.map((choice: any) => ({
+        ...choice,
+        model: modelName,
+      }));
+      aggregatedChoices = aggregatedChoices.concat(choicesWithModel);
 
       if (responseData.prompt_annotations) {
         aggregatedPromptAnnotations = aggregatedPromptAnnotations.concat(responseData.prompt_annotations);
       }
 
-      if (responseData.usage && responseData.usage.total_tokens) {
+      if (responseData.usage) {
         totalTokens += responseData.usage.total_tokens;
+        totalPromptTokens += responseData.usage.prompt_tokens;
+        totalCompletionTokens += responseData.usage.completion_tokens;
+
+        usageDetails.push({
+          model: modelName,
+          usage: responseData.usage,
+        });
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -487,8 +502,11 @@ async function handleJsonResponse(
     choices: aggregatedChoices,
     prompt_annotations: aggregatedPromptAnnotations,
     usage: {
+      prompt_tokens: totalPromptTokens,
+      completion_tokens: totalCompletionTokens,
       total_tokens: totalTokens,
     },
+    usage_details: usageDetails,
     errors: errors,
   };
 
