@@ -190,10 +190,10 @@ npm i wrangler -g
 
 *** KV create
 #+begin_src sh :exports both :wrap src sh :results raw replace
-wrangler kv:namespace create onellmapi
+wrangler kv:namespace create ONELLM_KV
 
 # if you need to test in the local wrangler dev
-wrangler kv:namespace create onellmapi --preview
+wrangler kv:namespace create ONELLM_KV --preview
 #+end_src
 
 *** Environment Variables

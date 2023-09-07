@@ -1,5 +1,5 @@
 import { CreateChatCompletionRequest } from 'openai';
-import { Env } from './worker';
+import { Env } from '../worker-configuration';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -375,11 +375,11 @@ function createServiceInstances(providers: Provider[]): ServiceProvider[] {
 
 async function storeModelInKV(env: Env, modelName: string, modelData: Model) {
   const kvValue = JSON.stringify(modelData);
-  await env.onellmapi.put(modelName, kvValue);
+  await env.ONELLM_KV.put(modelName, kvValue);
 }
 
 export async function getModelFromKV(env: Env, modelName: string): Promise<Model | null> {
-  const kvValue = await env.onellmapi.get(modelName);
+  const kvValue = await env.ONELLM_KV.get(modelName);
   if (kvValue) {
     return JSON.parse(kvValue) as Model;
   }

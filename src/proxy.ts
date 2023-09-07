@@ -1,6 +1,6 @@
 import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest } from 'openai';
 import { fetchAllModels, getAvailableProviders, Model, providerServiceMap, getModelFromKV } from './services';
-import { Env } from './worker';
+import { Env } from '../worker-configuration';
 
 // To handle multiple streams, we my need to remove some stop signals?
 async function* handleStreamStop(stream: ReadableStream): AsyncGenerator<[Uint8Array, string | null]> {

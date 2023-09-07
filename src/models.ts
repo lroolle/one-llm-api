@@ -1,6 +1,6 @@
 import { getAvailableProviders, fetchAllModels } from './services';
 import { Provider } from './services';
-import { Env } from './worker';
+import { Env } from '../worker-configuration';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
