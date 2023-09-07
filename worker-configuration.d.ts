@@ -1,16 +1,19 @@
-interface Env {
-	// Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-	// MY_KV_NAMESPACE: KVNamespace;
-	//
-	// Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-	// MY_DURABLE_OBJECT: DurableObjectNamespace;
-	//
-	// Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-	// MY_BUCKET: R2Bucket;
-	//
-	// Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
-	// MY_SERVICE: Fetcher;
-	//
-	// Example binding to a Queue. Learn more at https://developers.cloudflare.com/queues/javascript-apis/
-	// MY_QUEUE: Queue;
+export interface Env {
+  ONE_API_KEY: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_API_BASE?: string;
+  // Azure openai
+  AZURE_OPENAI_API_VERSION?: string;
+  // modelId1,modelId2;modelId1,modelId2
+  AZURE_OPENAI_DEPLOYMENTS?: string;
+  // resouceName1:key1;resourceName2:key2
+  AZURE_OPENAI_API_KEYS?: string;
+  AZURE_OPENAI_API_BASE?: string;
+  // Anthropic
+  ANTHROPIC_VERSION?: string;
+  ANTHROPIC_API_KEY?: string;
+  // Google palm
+  PALM_API_KEY?: string;
+  // namespaces
+  ONELLM_KV: KVNamespace;
 }
