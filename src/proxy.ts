@@ -396,7 +396,6 @@ async function handleStreamResponse(
 
   for (const modelName of modelNames) {
     const model = await getModel(env, modelName);
-    // console.log(model);
 
     if (!model) {
       errors.push(`Model ${modelName} not found.`);
@@ -414,18 +413,23 @@ async function handleStreamResponse(
   }
 
   if (errors.length) {
-    // console.error(errors.join(', '));
-
-    // Write the errors to the stream
     const encoder = new TextEncoder();
     await writer.write(encoder.encode(`Errors: ${errors.join(', ')}`));
+    await writer.close();
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+      },
+    });
   }
 
   await writer.close();
 
   // Return a new Response with the TransformStream's readable side
   return new Response(readable, {
-    headers: { 'Content-Type': 'text/event-stream' },
+    headers: {
+      'Content-Type': 'text/event-stream',
+    },
   });
 }
 
@@ -436,6 +440,7 @@ async function handleJsonResponse(
   modelNames: string[],
 ): Promise<Response> {
   let aggregatedId: string | null = null;
+  let created: number = Date().now() / 1000;
   let aggregatedChoices: any[] = [];
   let aggregatedPromptAnnotations: any[] = [];
   let totalTokens = 0;
@@ -465,6 +470,11 @@ async function handleJsonResponse(
       const responseData: any = await response.json();
       if (!aggregatedId) {
         aggregatedId = responseData.id;
+      } else {
+        aggregatedId += ',' + responseData.id;
+      }
+      if (responseData.created) {
+        created = responseData.created;
       }
 
       // Add model name to each choice
@@ -497,7 +507,7 @@ async function handleJsonResponse(
   const mergedResponse = {
     id: aggregatedId || generateRandomId(),
     object: 'chat.completion',
-    created: Date.now(),
+    created: created,
     model: modelNames.join(','),
     choices: aggregatedChoices,
     prompt_annotations: aggregatedPromptAnnotations,

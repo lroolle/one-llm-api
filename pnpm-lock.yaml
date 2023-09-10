@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
+  gpt-tokenizer:
+    specifier: ^2.1.1
+    version: 2.1.1
   itty-router:
     specifier: ^4.0.22
     version: 4.0.22
@@ -590,6 +593,12 @@ packages:
     resolution: {integrity: sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==}
     dev: true
 
+  /gpt-tokenizer@2.1.1:
+    resolution: {integrity: sha512-WlX+vj6aPaZ71U6Bf18fem+5k58zlgh2a4nbc7KHy6aGVIyq3nCh709b/8momu34sV/5t/SpzWi8LayWD9uyDw==}
+    dependencies:
+      rfc4648: 1.5.2
+    dev: false
+
   /http-cache-semantics@4.1.1:
     resolution: {integrity: sha512-er295DKPVsV82j5kw1Gjt+ADA/XYHsajl82cGNQG2eyoPkvgUhX+nDIyelzhIWbbsXP39EHcI6l5tYs2FYqYXQ==}
     dev: true
@@ -824,6 +833,10 @@ packages:
     dependencies:
       picomatch: 2.3.1
     dev: true
+
+  /rfc4648@1.5.2:
+    resolution: {integrity: sha512-tLOizhR6YGovrEBLatX1sdcuhoSCXddw3mqNVAcKxGJ+J0hFeJ+SjeWCv5UPA/WU3YzWPPuCVYgXBKZUPGpKtg==}
+    dev: false
 
   /rollup-plugin-inject@3.0.2:
     resolution: {integrity: sha512-ptg9PQwzs3orn4jkgXJ74bfs5vYz1NCZlSQMBUA0wKcGp5i5pA1AO3fOUEte8enhGUC+iapTCzEWw2jEFFUO/w==}

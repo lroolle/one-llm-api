@@ -1,5 +1,6 @@
 export interface Env {
-  ONE_API_KEY: string;
+  ONELLM_API_KEY: string;
+  // OpenAI
   OPENAI_API_KEY?: string;
   OPENAI_API_BASE?: string;
   // Azure openai
@@ -14,6 +15,9 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   // Google palm
   PALM_API_KEY?: string;
-  // namespaces
+  // Namespaces
   ONELLM_KV: KVNamespace;
+  ONELLM_LOGS: AnalyticsEngineDataset;
+  // Test only
+  MOCK_RESPONSE: boolean;
 }

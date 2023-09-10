@@ -1,42 +1,29 @@
-* ONE-LLM-API
 
-This is a Cloudflare worker that acts as an adapter to proxy requests to the
-[[https://platform.openai.com/docs/guides/gpt/chat-completions-api][OpenAI Chat Completions API]] to other AI services like Claude, Azure OpenAI, and
-Google Palm.
+* One-LLM-API: Unified AI Chat Completion Endpoint
 
-This project draws inspiration from, and is based on, the work of
-[[https://github.com/haibbo/cf-openai-azure-proxy][haibbo/cf-openai-azure-proxy]]. If you only require a single service proxy
-(such as Claude/Azure), please consider using the original project.
-This project, however, is more complex and is specifically designed to
-accommodate multiple services.
+One-LLM-API is a Cloudflare worker that simplifies accessing multiple AI model services by providing a single ~chat/completion~ API endpoint, with logging and monitoring capabilities. Service providers supported include OpenAI, Azure OpenAI, Claude, and Google Palm.
+
+** Key Features
+
+- Unified API endpoint for multiple AI chat completion services
+- Chat to *Multiple Models* on a single request;
+- Simplified authentication utilizing a single API key
+- Logging and monitoring support for enhanced observability
+- Observability based on [[https://developers.cloudflare.com/analytics/analytics-engine/][Workers Analytics Engine (beta)]]
+- Support for OpenAI, Azure OpenAI, Claude, and Google Palm;
+- Support multiple resource config for Azure OpenAI;
+
+*** Features may be added in the future
+1. Distribute "ONELLM_API_KEY" for differnt users;
+2. Throttling;
+3. A cost analytics page;
 
 ** Quick Start
 
 #+begin_src sh :exports both :wrap src sh :results raw replace
-curl TODO
+curl https://api.1lm.workers.dev ... // TODO
 #+end_src
 
-
-** Overview
-
-The worker allows you to make requests to the OpenAI API format and seamlessly
-redirect them under the hood to other services. This provides a unified API
-interface and abstraction layer across multiple AI providers.
-
-*** Key Features
-
-- *Single endpoint to access multiple AI services*;
-- Chat to *Multiple models* in a single request;
-- Unified request/response format using the OpenAI API;
-- Handles streaming responses;
-- Single API key for authentication;
-- Support for OpenAI, Claude, Azure OpenAI, and Google Palm;
-- Support multiple resource config for Azure OpenAI;
-
-**** Features may be added in the future
-1. Multiple "ONE_API_KEY" support;
-2. Logging request by keys, pricing and token count;
-3. Throttling;
 
 ** Usages
 
@@ -203,7 +190,7 @@ Configure the worker environment variables with your secret keys.
 Skip the service key if you do not have one or you do not want to deploy it.
 
 #+begin_src sh :exports both :wrap src sh :results raw replace
-wrangler secret put ONE_API_KEY
+wrangler secret put ONELLM_API_KEY
 wrangler secret put OPENAI_API_KEY
 wrangler secret put AZURE_OPENAI_API_KEYS
 wrangler secret put ANTHROPIC_API_KEY
@@ -221,7 +208,12 @@ Worker -> Settings -> Variables -> Environment Variables
 #+begin_src sh :exports both :wrap src sh :results raw replace
 wrangler depoly
 #+end_src
+** TODO Run with workerd
+:LOGBOOK:
+- State "TODO"       from              [2023-09-10 Sun 14:04]
+:END:
 
+*** Dockered
 
 ** Development
 
@@ -239,9 +231,86 @@ curl -vvv http://127.0.0.1:8787/v1/chat/completions -H "Content-Type: applicatio
   }'
 #+end_src
 
+** Alternatives
+
+1. Workerjs like [[https://github.com/haibbo/cf-openai-azure-proxy][haibbo/cf-openai-azure-proxy]]
+   This project draws inspiration from, and is based on the work of [[https://github.com/haibbo/cf-openai-azure-proxy][haibbo/cf-openai-azure-proxy]]. If you only require a single service proxy(such as Claude/Azure), please consider using this one.
+2. https://helicone.ai
+   Helicone is an open-source observability platform for Language Learning Models (LLMs).
+3. https://llm.report
+   📊 llm.report is an open-source logging and analytics platform for OpenAI: Log your ChatGPT API requests, analyze costs, and improve your prompts.
 
 ** Contributions
 
 Contributions and improvements are welcome! Please open GitHub issues or PRs.
 
 Let me know if you would like any changes or have additional sections to add!
+
+** License
+
+ONE-LLM-API is licensed under the [[./LICENSE][Appache 2.0 License]].
+
+
+* README Meta
+
+#+begin_ai markdown :model gpt-4-0314 :temperature 1.0
+[SYS]: We're working on a project named one-llm-api(1lm.io), with key features like:
+- *One chat completion endpoint to access multiple AI Model services*;
+- Chat to *Multiple Models* on a single request;
+- One API key for authentication;
+- Support for OpenAI, Azure OpenAI, Claude, and Google Palm;
+- Support multiple resource config for Azure OpenAI;
+- Observability based on [[https://developers.cloudflare.com/analytics/analytics-engine/][Workers Analytics Engine (beta)]]
+- Features may be added in the future
+  - Multiple "ONELLM_API_KEY" distribution support;
+  - Track costs;
+  - Throttling(Rate Limiting by API keys);
+
+[ME]: If you're an SEO expert, what suggestions you may give on the domain name 1lm.io?
+
+
+
+[AI]: As an SEO expert, I would recommend considering the following suggestions for your domain name 1lm.io:
+
+1. Consider a more descriptive domain name: Short domain names like 1lm.io can be catchy but may not convey what your service does. Consider using a longer, more descriptive domain name that includes relevant keywords or phrases related to your project (e.g. ai-multimodel-api.com).
+
+2. Use a .com domain if possible: While .io domains have become popular, especially among tech startups, .com domains are still the most recognized and trusted TLDs. If possible, consider acquiring a .com version of your domain to improve trust and visibility.
+
+3. Branding: Ensure that the domain name is unique, memorable, and reflects your project's branding. This will help users associate the domain name with your project and make it easier for them to find it in search results.
+
+4. Optimize for searchability: Include relevant keywords in your domain name that target the services or technology your project provides. This can help improve your organic search rankings and make it easier for users to find you online.
+
+5. Avoid using non-alphanumeric characters: Although numbers (like "1") and special characters (like "-") are allowed in domain names, they can make it harder for users to remember and type out your domain. Stick with letters to make your domain more user-friendly.
+
+6. Research potential trademark or copyright issues: Before committing to a domain name, make sure it doesn't infringe on any existing trademarks or copyrights to avoid legal issues down the road.
+
+7. Monitor your online reputation: Once you've chosen a domain name, keep track of your online reputation, reviews, and search engine rankings to ensure you're maintaining a positive image and continually optimizing your online presence.
+
+Regardless of which domain name you choose, the most important factor for SEO is creating high-quality, relevant content and providing excellent user experience on your website. Focus on these areas to ensure your website ranks well in search results and attracts visitors.
+
+[ME]: Okay, I'm writing the README.md for this project, help with improve it:
+
+Requesting a single API endpoint, with logging and monitoring.
+
+This is a Cloudflare worker that acts as an adapter to proxy requests to the [[https://platform.openai.com/docs/guides/gpt/chat-completions-api][OpenAI Chat Completions API]] to other AI services like Claude, Azure OpenAI, and Google Palm.
+
+
+[AI]: # One-LLM-API: Unified AI Chat Completion Endpoint
+
+One-LLM-API is a Cloudflare worker that simplifies accessing multiple AI chat completion services by providing a single API endpoint. This solution is designed to streamline the integration and management of AI services such as OpenAI, Claude, Azure OpenAI, and Google Palm, while offering logging and monitoring capabilities.
+
+## Features
+
+- Unified API endpoint for multiple AI chat completion services
+- Seamless proxy for requests to OpenAI Chat Completions API and other AI services, including Claude, Azure OpenAI, and Google Palm
+- Built with Cloudflare Workers for optimized performance and reliability
+- Logging and monitoring support for enhanced observability
+- Simplified authentication utilizing a single API key
+- Frequent updates and feature additions to support evolving AI technology
+
+## Getting Started
+...
+
+
+[ME]:
+#+end_ai

@@ -7,8 +7,8 @@ import pytest
 NOTE: this tests depends on the service response, it do fails, but we do not need to care about it.
 """
 
-API_KEY = os.environ.get("PROXY_OPENAI_API_KEY")
-API_BASE = os.environ.get("PROXY_OPENAI_API_BASE")
+API_KEY = os.environ.get("ONELLM_API_KEY")
+API_BASE = os.environ.get("OPENAI_API_BASE", "http://127.0.0.1:8787/v1")
 
 openai.api_key = API_KEY
 openai.api_base = API_BASE
@@ -16,7 +16,7 @@ openai.api_base = API_BASE
 MESSAGES = [
     {
         "role": "user",
-        "content": "Please say `Hello everyone, I am <your name here>.`",
+        "content": "Please repeat:Hello everyone, I am Assistant.",
     },
 ]
 

@@ -12,6 +12,7 @@
 		"wrangler": "^3.6.0"
 	},
 	"dependencies": {
+		"gpt-tokenizer": "^2.1.1",
 		"itty-router": "^4.0.22",
 		"openai": "^3.3.0"
 	}

@@ -2,6 +2,7 @@ name = "1lm"
 main = "src/worker.ts"
 compatibility_date = "2023-08-14"
 workers_dev = false
+# node_compat = true
 
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Note: Use secrets to store sensitive data.
@@ -20,7 +21,7 @@ id = "783b48cdfc5f400ba7c6f1bcd1fc7cba"
 preview_id = "a4e9cfb5961340be8197c4e4e80bb077"
 
 [env.production.vars]
-AZURE_OPENAI_DEPLOYMENTS = "gpt-35-turbo,gpt-35-turbo-0613,gpt-35-turbo-16k;gpt-4-32k-0613-jpe,gpt-4-0613-jpe,gpt-35-turbo-16k-0613-jpe,gpt-35-turbo-0613-jpe,text-embedding-ada-002-jpe"
+AZURE_OPENAI_DEPLOYMENTS = "gpt-35-turbo,gpt-35-turbo-0613,gpt-35-turbo-16k;gpt-4-32k,gpt-4-32k-0613-jpe,gpt-4-0613-jpe,gpt-35-turbo-16k-0613-jpe,gpt-35-turbo-0613-jpe,text-embedding-ada-002-jpe"
 AZURE_OPENAI_API_VERSION = "2023-07-01-preview"
 OPENAI_API_BASE = "https://api.openai.com"
 ANTHROPIC_VERSION = "2023-06-01"

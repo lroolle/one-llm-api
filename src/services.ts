@@ -1,8 +1,15 @@
 import { CreateChatCompletionRequest } from 'openai';
 import { Env } from '../worker-configuration';
+import { encode } from 'gpt-tokenizer';
 
-function sleep(ms: number) {
+const OPENAI_URL_BASE = 'https://api.openai.com';
+
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function countTokens(text: string): number {
+  return encode(text).length;
 }
 
 export enum Provider {
@@ -49,8 +56,7 @@ export interface ServiceProvider {
 
 export class OpenAIService implements ServiceProvider {
   async fetch(request: Request, env: Env, requestBody: CreateChatCompletionRequest, model: Model): Promise<Response> {
-    const defaultBase = 'https://api.openai.com';
-    const baseUrl = env.OPENAI_API_BASE || defaultBase;
+    const baseUrl = env.OPENAI_API_BASE || OPENAI_URL_BASE;
 
     const url = new URL(request.url);
     url.protocol = new URL(baseUrl).protocol;
@@ -58,11 +64,13 @@ export class OpenAIService implements ServiceProvider {
     url.port = '';
 
     requestBody.model = model.id;
+    const authHeader = request.headers.get('Authorization') || '';
+    const authHeaderSend = `Bearer ${env.OPENAI_API_KEY}` || authHeader;
     const openaiRequest = new Request(url.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+        Authorization: authHeaderSend,
       },
       body: JSON.stringify(requestBody),
     });
@@ -77,15 +85,28 @@ export class OpenAIService implements ServiceProvider {
     model: Model,
     writer: WritableStreamDefaultWriter,
   ) {
-    const response = await this.fetch(request, env, requestBody, model);
+    // const response = await this.fetch(request, env, requestBody, model);
+    const response = await mockOpenaiStreamResponse();
     const reader = response?.body?.getReader();
+
+    let accumulatedContent: string[] = [];
+
     while (true && reader != null) {
       const { value, done } = await reader.read();
       if (done) {
         break;
       }
+
+      // Convert the Uint8Array to a string and accumulate
+      const content = new TextDecoder().decode(value);
+      accumulatedContent.push(content);
+
       writer.write(value);
     }
+
+    // WIP
+    // const completionContent = accumulatedContent.join('').sp
+    // const completionTokens =
   }
 
   async getModels(env: Env): Promise<Model[]> {
@@ -93,8 +114,7 @@ export class OpenAIService implements ServiceProvider {
       return [];
     }
 
-    const defaultBase = 'https://api.openai.com';
-    const baseUrl = env.OPENAI_API_BASE || defaultBase;
+    const baseUrl = env.OPENAI_API_BASE || OPENAI_URL_BASE;
 
     const url = `${baseUrl}/v1/models`;
     const openaiRequest = new Request(url, {
@@ -412,4 +432,37 @@ export async function fetchAllModels(env: Env, providers: Provider[], forceRefre
 
   // Flatten the array of arrays into a single array of models
   return modelsFromAllServices.flat();
+}
+
+// test
+async function mockOpenaiStreamResponse(): Promise<Response> {
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  const dataChunks = [
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":" Chat"},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"G"},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"PT"},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"."},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+    '[DONE]',
+  ];
+
+  // Function to write each data chunk to the stream with a delay
+  async function writeToStream() {
+    for (const chunk of dataChunks) {
+      await new Promise((resolve) => setTimeout(resolve, 10)); // 500ms delay
+      writer.write(encoder.encode(`data: ${chunk}\n\n`)); // Write data in SSE format
+    }
+    writer.close();
+  }
+
+  writeToStream();
+
+  return new Response(readable, {
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
 }
