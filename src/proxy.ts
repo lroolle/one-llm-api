@@ -1,5 +1,11 @@
-import { ChatCompletionRequestMessage, ChatCompletionRequestMessageRoleEnum, CreateChatCompletionRequest } from 'openai';
+import {
+  ChatCompletionRequestMessage,
+  ChatCompletionRequestMessageRoleEnum,
+  CreateChatCompletionRequest,
+  CreateChatCompletionResponse,
+} from 'openai';
 import { fetchAllModels, getAvailableProviders, Model, providerServiceMap, getModelFromKV } from './services';
+import { countChatTokens } from './utils';
 import { Env } from '../worker-configuration';
 
 // To handle multiple streams, we my need to remove some stop signals?
@@ -393,6 +399,7 @@ async function handleStreamResponse(
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   let errors: string[] = [];
+  let chatResp: CreateChatCompletionResponse;
 
   for (const modelName of modelNames) {
     const model = await getModel(env, modelName);
@@ -405,9 +412,15 @@ async function handleStreamResponse(
     try {
       const ServiceClass = providerServiceMap[model.provider];
       const serviceInstance = new ServiceClass();
-      await serviceInstance.pipeStream(request, env, requestBody, model, writer);
+      chatResp = await serviceInstance.pipeStream(request, env, requestBody, model, writer);
+      const promptTokens = countChatTokens(requestBody.messages);
+      chatResp.usage.prompt_tokens = promptTokens;
+      chatResp.usage.total_tokens += promptTokens;
+      console.log(chatResp.usage);
+      console.log(JSON.stringify(chatResp));
     } catch (error) {
       errors.push(`Service for model ${modelName} error pipeStream.`);
+      console.error(error);
       continue;
     }
   }
@@ -440,7 +453,7 @@ async function handleJsonResponse(
   modelNames: string[],
 ): Promise<Response> {
   let aggregatedId: string | null = null;
-  let created: number = Date().now() / 1000;
+  let created: number = Date.now() / 1000;
   let aggregatedChoices: any[] = [];
   let aggregatedPromptAnnotations: any[] = [];
   let totalTokens = 0;
@@ -471,7 +484,7 @@ async function handleJsonResponse(
       if (!aggregatedId) {
         aggregatedId = responseData.id;
       } else {
-        aggregatedId += ',' + responseData.id;
+        aggregatedId += '--' + responseData.id;
       }
       if (responseData.created) {
         created = responseData.created;

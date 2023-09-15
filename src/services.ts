@@ -1,17 +1,12 @@
 import { CreateChatCompletionRequest } from 'openai';
 import { Env } from '../worker-configuration';
-import { encode } from 'gpt-tokenizer';
+import { countTokens, parseChunks, extractChatResponse } from './utils';
 
 const OPENAI_URL_BASE = 'https://api.openai.com';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-function countTokens(text: string): number {
-  return encode(text).length;
-}
-
 export enum Provider {
   OpenAI = 'openai',
   AzureOpenAI = 'azure-openai',
@@ -85,28 +80,21 @@ export class OpenAIService implements ServiceProvider {
     model: Model,
     writer: WritableStreamDefaultWriter,
   ) {
-    // const response = await this.fetch(request, env, requestBody, model);
-    const response = await mockOpenaiStreamResponse();
+    // const response = await mockOpenaiStreamResponse();
+    const response = await this.fetch(request, env, requestBody, model);
     const reader = response?.body?.getReader();
+    const decoder = new TextDecoder();
 
-    let accumulatedContent: string[] = [];
-
-    while (true && reader != null) {
+    let accumulatedChunks = [];
+    while (true && reader) {
       const { value, done } = await reader.read();
-      if (done) {
-        break;
-      }
-
-      // Convert the Uint8Array to a string and accumulate
-      const content = new TextDecoder().decode(value);
-      accumulatedContent.push(content);
-
+      if (done) break;
+      const content = decoder.decode(value, { stream: true });
+      accumulatedChunks.push(content);
       writer.write(value);
     }
 
-    // WIP
-    // const completionContent = accumulatedContent.join('').sp
-    // const completionTokens =
+    return extractChatResponse(accumulatedChunks.join(''));
   }
 
   async getModels(env: Env): Promise<Model[]> {
@@ -202,6 +190,7 @@ export class AzureOpenAIService implements ServiceProvider {
     const newline = '\n';
     const delimiter = '\n\n';
     const encodedNewline = encoder.encode(newline);
+    let accumulatedChunks: string[] = [];
 
     let buffer = '';
     while (true && reader != null) {
@@ -215,7 +204,10 @@ export class AzureOpenAIService implements ServiceProvider {
 
       // Loop through all but the last line, which may be incomplete.
       for (let i = 0; i < lines.length - 1; i++) {
-        await writer.write(encoder.encode(lines[i] + delimiter));
+        const newLine = lines[i] + delimiter;
+        accumulatedChunks.push(newLine);
+
+        await writer.write(encoder.encode(newLine));
         await sleep(20);
       }
 
@@ -226,6 +218,8 @@ export class AzureOpenAIService implements ServiceProvider {
       await writer.write(encoder.encode(buffer));
     }
     await writer.write(encodedNewline);
+
+    return extractChatResponse(accumulatedChunks.join(''));
   }
 
   private getAzureApiKey(env: Env, resourceIdx: number | undefined): string {
@@ -443,9 +437,12 @@ async function mockOpenaiStreamResponse(): Promise<Response> {
   const dataChunks = [
     '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
     '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":" Hello 🤔️"},"finish_reason":null}]}',
     '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":" Chat"},"finish_reason":null}]}',
     '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"G"},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"G"},"finish_reason":null}]}',
     '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"PT"},"finish_reason":null}]}',
+    '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"."},"finish_reason":null}]}',
     '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"."},"finish_reason":null}]}',
     '{"id":"chatcmpl-7x6RglsSInt9aZCdgDOtFevpgeLis","object":"chat.completion.chunk","created":1694320484,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
     '[DONE]',
